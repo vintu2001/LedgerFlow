@@ -6,10 +6,14 @@ import com.azure.messaging.eventhubs.EventHubProducerClient;
 import com.azure.messaging.eventhubs.models.CreateBatchOptions;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.ledgerflow.model.TransactionEvent;
+import com.ledgerflow.service.LedgerProcessor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
+
+import java.util.concurrent.atomic.AtomicLong;
 
 @Service
 public class EventPublisher {
@@ -18,17 +22,25 @@ public class EventPublisher {
 
     private final EventHubProducerClient producerClient;
     private final ObjectMapper objectMapper;
+    private final LedgerProcessor ledgerProcessor;
+    private final boolean localFallbackEnabled;
+    private final AtomicLong localSequenceNumber = new AtomicLong(System.currentTimeMillis());
 
     public EventPublisher(@Autowired(required = false) EventHubProducerClient producerClient,
-                          ObjectMapper objectMapper) {
+                          ObjectMapper objectMapper,
+                          LedgerProcessor ledgerProcessor,
+                          @Value("${ledgerflow.eventhub.local-fallback-enabled:false}")
+                          boolean localFallbackEnabled) {
         this.producerClient = producerClient;
         this.objectMapper = objectMapper;
+        this.ledgerProcessor = ledgerProcessor;
+        this.localFallbackEnabled = localFallbackEnabled;
     }
 
     public void publish(TransactionEvent event) {
         if (producerClient == null) {
-            throw new IllegalStateException(
-                "Event Hub producer is not configured. Set EVENTHUB_CONNECTION_STRING.");
+            publishWithLocalFallback(event);
+            return;
         }
 
         try {
@@ -54,6 +66,25 @@ public class EventPublisher {
             log.error("Failed to publish transaction {}: {}",
                 event.transactionId(), e.getMessage());
             throw new RuntimeException("Event publishing failed", e);
+        }
+    }
+
+    private void publishWithLocalFallback(TransactionEvent event) {
+        if (!localFallbackEnabled) {
+            throw new IllegalStateException(
+                "Event Hub producer is not configured. Set EVENTHUB_CONNECTION_STRING.");
+        }
+
+        try {
+            String payload = objectMapper.writeValueAsString(event);
+            long sequenceNumber = localSequenceNumber.incrementAndGet();
+            ledgerProcessor.process(payload, "local-0", sequenceNumber);
+            log.warn("Event Hub unavailable. Processed transaction {} via local fallback",
+                event.transactionId());
+        } catch (Exception e) {
+            log.error("Failed local fallback processing for transaction {}: {}",
+                event.transactionId(), e.getMessage());
+            throw new RuntimeException("Local fallback processing failed", e);
         }
     }
 }

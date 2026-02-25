@@ -40,5 +40,8 @@ build/
 ### Environment ###
 .env
 
+### Local test artifacts ###
+tmp/
+
 ### Project docs ###
 project3_billing_ledger.md

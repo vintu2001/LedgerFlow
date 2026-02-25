@@ -38,7 +38,8 @@ class LedgerProcessorTest {
     @BeforeEach
     void setUp() {
         objectMapper = new ObjectMapper().registerModule(new JavaTimeModule());
-        processor = new LedgerProcessor(ledgerRepo, balanceRepo, checkpointRepo, objectMapper);
+        processor = new LedgerProcessor(
+            ledgerRepo, balanceRepo, checkpointRepo, objectMapper, "test-group");
     }
 
     @Test

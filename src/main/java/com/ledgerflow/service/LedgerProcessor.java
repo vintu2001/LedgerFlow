@@ -9,6 +9,7 @@ import com.ledgerflow.repository.CheckpointRepository;
 import com.ledgerflow.repository.LedgerEntryRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Isolation;
 import org.springframework.transaction.annotation.Transactional;
@@ -17,21 +18,23 @@ import org.springframework.transaction.annotation.Transactional;
 public class LedgerProcessor {
 
     private static final Logger log = LoggerFactory.getLogger(LedgerProcessor.class);
-    private static final String CONSUMER_GROUP = "ledger-processor";
 
     private final LedgerEntryRepository ledgerRepo;
     private final BalanceRepository balanceRepo;
     private final CheckpointRepository checkpointRepo;
     private final ObjectMapper objectMapper;
+    private final String consumerGroup;
 
     public LedgerProcessor(LedgerEntryRepository ledgerRepo,
                            BalanceRepository balanceRepo,
                            CheckpointRepository checkpointRepo,
-                           ObjectMapper objectMapper) {
+                           ObjectMapper objectMapper,
+                           @Value("${azure.eventhub.consumer-group:$Default}") String consumerGroup) {
         this.ledgerRepo = ledgerRepo;
         this.balanceRepo = balanceRepo;
         this.checkpointRepo = checkpointRepo;
         this.objectMapper = objectMapper;
+        this.consumerGroup = consumerGroup;
     }
 
     @Transactional(isolation = Isolation.READ_COMMITTED)
@@ -81,9 +84,9 @@ public class LedgerProcessor {
 
     private void saveCheckpoint(String partitionId, long sequenceNumber) {
         EventCheckpoint checkpoint = checkpointRepo
-            .findByConsumerGroupAndPartitionId(CONSUMER_GROUP, partitionId)
+            .findByConsumerGroupAndPartitionId(consumerGroup, partitionId)
             .orElseGet(() -> EventCheckpoint.builder()
-                .consumerGroup(CONSUMER_GROUP)
+                .consumerGroup(consumerGroup)
                 .partitionId(partitionId)
                 .build());
         checkpoint.setSequenceNumber(sequenceNumber);

@@ -52,10 +52,12 @@ public class EventConsumerService {
 
         consumerClient.getEventHubProperties()
             .doOnSuccess(properties -> {
+                java.util.List<String> partitionIds = new java.util.ArrayList<>();
+                properties.getPartitionIds().forEach(partitionIds::add);
                 log.info("Connected to Event Hub: {}, partitions: {}",
-                    properties.getName(), properties.getPartitionIds().size());
+                    properties.getName(), partitionIds.size());
 
-                for (String partitionId : properties.getPartitionIds()) {
+                for (String partitionId : partitionIds) {
                     EventPosition startPosition = resolveStartPosition(partitionId);
                     Disposable subscription = consumerClient
                         .receiveFromPartition(partitionId, startPosition)

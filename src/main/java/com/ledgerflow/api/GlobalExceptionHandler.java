@@ -2,7 +2,9 @@ package com.ledgerflow.api;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
+import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
@@ -29,6 +31,24 @@ public class GlobalExceptionHandler {
 
         return ResponseEntity.badRequest().body(Map.of(
             "error", message,
+            "timestamp", Instant.now().toString()
+        ));
+    }
+
+    @ExceptionHandler(MissingServletRequestParameterException.class)
+    public ResponseEntity<Map<String, Object>> handleMissingParameter(
+            MissingServletRequestParameterException e) {
+        return ResponseEntity.badRequest().body(Map.of(
+            "error", "Missing required parameter: " + e.getParameterName(),
+            "timestamp", Instant.now().toString()
+        ));
+    }
+
+    @ExceptionHandler(MethodArgumentTypeMismatchException.class)
+    public ResponseEntity<Map<String, Object>> handleTypeMismatch(MethodArgumentTypeMismatchException e) {
+        String paramName = e.getName() != null ? e.getName() : "parameter";
+        return ResponseEntity.badRequest().body(Map.of(
+            "error", "Invalid value for parameter '" + paramName + "'",
             "timestamp", Instant.now().toString()
         ));
     }
